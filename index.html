@@ -1235,10 +1235,15 @@ function subscribeToZone(zone) {
       renderCustomCoordsList(); updateCategoryCheckboxes(); renderMarkers();
       flashRealtimeIndicator('Coordenadas actualizadas');
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'tech_images', filter: `id=eq.global` }, payload => {
-      const incoming = payload.new?.data;
-      if (!incoming) return;
-      techImages = asPlainObject(incoming);
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'tech_images_by_tech' }, payload => {
+      techImages = asPlainObject(techImages);
+      if (payload.eventType === 'DELETE') {
+        const old = payload.old;
+        if (old && old.tecnico) delete techImages[old.tecnico];
+      } else {
+        const row = payload.new;
+        if (row && row.tecnico) techImages[row.tecnico] = row.image_data;
+      }
       localStorage.setItem('techImages', JSON.stringify(techImages));
       renderMarkers();
       flashRealtimeIndicator('Imágenes actualizadas');
@@ -2004,9 +2009,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!localStorage.getItem('deletedRecordsByCategory'))
     localStorage.setItem('deletedRecordsByCategory', JSON.stringify({}));
 
-  // ── Cargar imágenes técnicos ──────────────────────────────────────────────
-  const fbTI = await sbLoadGlobal('tech_images');
-  if (fbTI) { techImages = asPlainObject(fbTI); localStorage.setItem('techImages', JSON.stringify(techImages)); }
+  // ── Cargar imágenes técnicos (una fila por técnico) ─────────────────────────
+  try {
+    const { data: tiRows, error: tiErr } = await sb.from('tech_images_by_tech').select('tecnico, image_data');
+    if (tiErr) throw tiErr;
+    const map = {};
+    (tiRows || []).forEach(r => { if (r.tecnico) map[r.tecnico] = r.image_data; });
+    techImages = map;
+    localStorage.setItem('techImages', JSON.stringify(techImages));
+  } catch (tiErr) {
+    console.error('Error cargando tech_images_by_tech:', tiErr);
+  }
 
   // Restaurar fecha de última carga desde Supabase
   const fbCatImg = await sbLoadGlobal('category_images');
@@ -3581,7 +3594,13 @@ async function handleTechImageUpload(e){
     }catch(storageErr){
       console.error('techImages localStorage error:', storageErr);
     }
-    const err = await sbSaveGlobal('tech_images',techImages);
+    // Se guarda SOLO la fila de este técnico (no el mapa completo), para que
+    // dos personas asignando fotos a técnicos distintos al mismo tiempo nunca
+    // se pisen entre sí.
+    const idTec = normalizeString(tecnico).trim();
+    const { error: err } = await sb.from('tech_images_by_tech').upsert({
+      id: idTec, tecnico, image_data: dataUrl, updated_at: new Date().toISOString()
+    });
     renderMarkers();
     if (err) {
       alert(`Se asignó la imagen a "${tecnico}" en este dispositivo, pero no se pudo sincronizar en la nube (no aparecerá en tiempo real en los demás dispositivos). Detalle: ${err.message||err}`);
