@@ -1795,7 +1795,7 @@ function compressImageFile(file, maxSize = 200, quality = 0.72) {
 function showLoading(v) { document.getElementById('loading-overlay').style.display = v ? 'flex' : 'none'; }
 function updateLastUploadLabel(fecha){
   const lbl=document.getElementById('last-upload-label');
-  if(lbl) lbl.textContent=`Ult. carga: ${fecha}`;
+  if(lbl) lbl.textContent=`Act.: ${fecha}`;
 }
 
 // ─── Sonido para nuevos registros sin técnico ─────────────────────────────────
