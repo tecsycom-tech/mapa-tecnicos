@@ -2804,7 +2804,8 @@ function renderMarkersFromRecords(records) {
 
     // ── Marca de INICIO DE TRAYECTORIA (bandera 🚩): siempre visible para Estado2 = EN CAMINO o EN PROCESO,
     //    independientemente del botón "Posición Técnicos" (así se comportaba en el archivo original) ──
-    const estado2Norm=String(record.Estado2||'').trim().toUpperCase();
+    let estado2Norm=String(record.Estado2||'').trim().toUpperCase();
+    if(['INICIADO','PROCESO INICIADO','EN PROCESO INICIADO','EN_PROCESO'].includes(estado2Norm)) estado2Norm='EN PROCESO';
     const tieneUbiTecValida=record.Ubi_TEC && (estado2Norm==='EN CAMINO'||estado2Norm==='EN PROCESO');
     let ubiLat, ubiLng;
     if(tieneUbiTecValida){
@@ -2845,6 +2846,16 @@ function renderMarkersFromRecords(records) {
       if(estado2Norm==='EN CAMINO' && !isNaN(lat) && !isNaN(lng)){
         startTecCarAnimation(carMarker, ubiLat, ubiLng, parseFloat(lat), parseFloat(lng));
       }
+    } else if(isTecSimVisible() && estado2Norm==='EN PROCESO' && !isNaN(parseFloat(lat)) && !isNaN(parseFloat(lng))){
+      // Sin Ubi_TEC válido (frecuente en registros de PROVINCIA): el técnico igual se ve
+      // trabajando en la ubicación de la orden, con la misma animación que en LIMA.
+      const wMarker=L.marker([parseFloat(lat),parseFloat(lng)],{
+        icon:L.divIcon({className:'',html:'<div class="tec-working-pin"><i class="fas fa-screwdriver-wrench"></i></div>',iconSize:[28,28],iconAnchor:[14,14]}),
+        zIndexOffset:800
+      }).addTo(map);
+      wMarker.bindTooltip(`${record.Tecnico||'Técnico'} · ${record.Estado2}`,{direction:'top',offset:[0,-14]});
+      wMarker.on('click',()=>showRecordDetails(record));
+      markers.push(wMarker);
     }
   });
   const showKml=localStorage.getItem('showKmlPoints')==='true';
