@@ -2103,9 +2103,11 @@ async function loadHistorialSinTecnico(){
     const { data, error } = await sb.from('historial_sin_tecnico').select('*').eq('zone', selectedZone).order('hora_bucket', {ascending:false});
     if(error) throw error;
     historialSinTecnico = data || [];
+    window._historialLoadError = null;
     localStorage.setItem(`historial_sin_tecnico_${selectedZone}`, JSON.stringify(historialSinTecnico));
   }catch(e){
     console.error('loadHistorialSinTecnico:', e);
+    window._historialLoadError = (e && (e.message||e.details||e.code)) || String(e);
     const local = localStorage.getItem(`historial_sin_tecnico_${selectedZone}`);
     historialSinTecnico = local ? JSON.parse(local) : [];
   }
@@ -2116,7 +2118,10 @@ function renderHistorialSinTecnicoPanel(){
   const cont = document.getElementById('historial-sin-tecnico-content');
   if(!cont) return;
   if(!historialSinTecnico.length){
-    cont.innerHTML = '<div class="text-muted small">Sin historial registrado</div>';
+    const errH = window._historialLoadError;
+    cont.innerHTML = errH
+      ? `<div class="small text-danger"><i class="fas fa-triangle-exclamation me-1"></i>No se pudo leer el historial de ${selectedZone} en Supabase: <em>${String(errH).replace(/</g,'&lt;')}</em></div><button class="btn btn-sm btn-outline-primary mt-2" onclick="loadHistorialSinTecnico()"><i class="fas fa-rotate me-1"></i>Reintentar</button>`
+      : `<div class="text-muted small">Sin historial registrado en ${selectedZone}. Se guarda al cargar el CSV de AppSheet con ubicaciones nuevas sin técnico.</div><button class="btn btn-sm btn-outline-primary mt-2" onclick="loadHistorialSinTecnico()"><i class="fas fa-rotate me-1"></i>Actualizar</button>`;
     return;
   }
   // Agrupar por hora_bucket y luego por fecha, estilo calendario
