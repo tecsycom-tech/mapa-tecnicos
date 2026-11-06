@@ -591,7 +591,7 @@ body{ font-family:var(--bs-body-font-family); color:var(--ink); background:var(-
 *:focus-visible{ outline:2px solid var(--brand); outline-offset:2px; }
 
 /* ── Scroll fino ── */
-#sidebar,#detail-panel,#free-techs-body,#tech-alerts-body,#sim-body,#zone-list,#gestion-panel-list{ scrollbar-width:thin; scrollbar-color:#D9D2CA transparent; }
+#sidebar,#detail-panel,#free-techs-body,#tech-alerts-body,#sim-body,#zone-list,#gestion-panel-list{ scrollbar-width:thin; scrollbar-color:#B9AFA4 transparent; }
 #sidebar::-webkit-scrollbar,#detail-panel::-webkit-scrollbar{ width:8px; }
 #sidebar::-webkit-scrollbar-thumb,#detail-panel::-webkit-scrollbar-thumb{ background:#D9D2CA; border-radius:8px; }
 
@@ -777,7 +777,7 @@ input[name="zoneSelector"]:focus-visible + .form-check-label{ outline:2px solid 
 #record-details .list-group-item{ border-color:var(--line); }
 
 /* ── Menú contextual ── */
-.context-menu{ border:1px solid var(--line); border-radius:var(--radius-md); box-shadow:var(--shadow-2); padding:6px 0; overflow:hidden; font-family:var(--bs-body-font-family); }
+.context-menu{ border:1px solid var(--line); border-radius:var(--radius-md); box-shadow:var(--shadow-2); padding:6px 0; max-height:300px; overflow-y:auto; overflow-x:hidden; scrollbar-width:thin; scrollbar-color:#B9AFA4 transparent; font-family:var(--bs-body-font-family); }
 .context-menu-item{ transition:background .12s,color .12s; font-weight:600; }
 .context-menu-item:hover{ background:var(--brand-soft); color:var(--brand-deep); }
 .context-menu-header{ background:var(--canvas); color:var(--ink); border-bottom:1px solid var(--line); }
