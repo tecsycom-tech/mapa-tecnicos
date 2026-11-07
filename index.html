@@ -3883,7 +3883,7 @@ function handleExcelUpload(e){
   const isCsv=/\.csv$/i.test(file.name);
   showLoading(true);
   const reader=new FileReader();
-  reader.onload=async function(evt){
+  reader.onload=async function(evt){ try{ await (async function(){
     let json;
     let esCsvAppSheetCrudo=false;
     let objsCrudo=null; // filas sin filtrar por zonal, solo cuando es CSV crudo de AppSheet
@@ -3950,7 +3950,11 @@ function handleExcelUpload(e){
     checkNuevosSinTecnico(allRecords);
     // Registrar en el historial por hora las ubicaciones nuevas que llegaron sin técnico
     registrarHistorialSinTecnico(registrosNuevosParaHistorial);
-  };
+  })(); }catch(err){
+    console.error('handleExcelUpload:',err);
+    showLoading(false); try{e.target.value='';}catch(_){}
+    alert('No se pudo procesar el archivo: '+((err&&err.message)||err));
+  } };
   if(isCsv) reader.readAsText(file,'utf-8'); else reader.readAsArrayBuffer(file);
 }
 
