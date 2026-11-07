@@ -1567,6 +1567,7 @@ function subscribeToZone(zone) {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'records', filter: `id=eq.${zone}` }, payload => {
       const incoming = payload.new?.data;
       if (!incoming) return;
+      if (window._uploadEnCurso) return; // carga de archivo en curso: no pisar los registros
       const prevCount = allRecords.length;
       allRecords = Array.isArray(incoming) ? incoming : Object.values(incoming);
       localStorage.setItem(`records_${zone}`, JSON.stringify(allRecords));
@@ -1641,6 +1642,7 @@ function subscribeToZone(zone) {
 async function refreshZoneRecordsFromSupabase(zone){
   try{
     if (selectedZone !== zone) return;
+    if (window._uploadEnCurso) return;
     const { data, error } = await sb.from('records').select('data').eq('id', zone).single();
     if (error || !data?.data) return;
     const incoming = Array.isArray(data.data) ? data.data : Object.values(data.data);
@@ -3924,12 +3926,27 @@ function handleExcelUpload(e){
       });
       allRecords=newRecords;
     }
+    const registrosFinales=allRecords; window._uploadEnCurso=true;
     window._userHasZoomed = false;
     // Guardar y mostrar fecha/hora de última carga en Supabase (visible para todos)
     const now=new Date();
     const fechaStr=now.toLocaleDateString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+now.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
     await sbSaveGlobal('category_images', {...(await sbLoadGlobal('category_images')||{}), _lastUpload: fechaStr});
     updateLastUploadLabel(fechaStr);
+    allRecords=registrosFinales;
+    if(esCsvAppSheetCrudo){
+      // El CSV crudo solo añade: se une a la versión más reciente del servidor (que puede traer
+      // cambios del Google Sheet u otros equipos) para no sobrescribirla con una copia vieja.
+      try{
+        const ultimo=await sbLoad('records',selectedZone);
+        if(Array.isArray(ultimo)&&ultimo.length){
+          const m=agregarRegistrosNuevos(ultimo,newRecords);
+          allRecords=m.resultado;
+          registrosNuevosParaHistorial=m.agregadosArr;
+          cantidadPublicada=m.agregadosArr.length;
+        }
+      }catch(mergeErr){ console.warn('merge con servidor:',mergeErr); }
+    }
     localStorage.setItem(`records_${selectedZone}`,JSON.stringify(allRecords));
     await sbSave('records',selectedZone,allRecords);
     // Si se cargó el CSV crudo de AppSheet con LIMA marcada, además se auto-publican
@@ -3954,7 +3971,7 @@ function handleExcelUpload(e){
     console.error('handleExcelUpload:',err);
     showLoading(false); try{e.target.value='';}catch(_){}
     alert('No se pudo procesar el archivo: '+((err&&err.message)||err));
-  } };
+  } finally { window._uploadEnCurso=false; } };
   if(isCsv) reader.readAsText(file,'utf-8'); else reader.readAsArrayBuffer(file);
 }
 
