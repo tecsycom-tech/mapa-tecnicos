@@ -6236,93 +6236,104 @@ if(localStorage.getItem('showTooltips')===null)localStorage.setItem('showTooltip
   });
 })();
 // inicio del nuevo codigo para el mapa
-(function integrarParametrosDesdeMonitorSGI() {
+(function integrarPorCampoUbicacionManual() {
   const params = new URLSearchParams(window.location.search);
   const zonal = (params.get('zonal') || '').trim().toUpperCase();
-  const lat = parseFloat(params.get('lat'));
-  const lng = parseFloat(params.get('lng'));
+  const latRaw = (params.get('lat') || '').trim();
+  const lngRaw = (params.get('lng') || '').trim();
   const codigo = (params.get('codigo') || '').trim();
   const cliente = (params.get('cliente') || '').trim();
 
-  function activarZonalProvincia() {
+  if (!latRaw || !lngRaw) return;
+  const lat = parseFloat(latRaw);
+  const lng = parseFloat(lngRaw);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+  function seleccionarProvinciaSiAplica() {
     if (zonal !== 'PROVINCIA') return;
-    const candidatos = Array.from(document.querySelectorAll('button, [role="button"], a, div, span, li'));
-    const btnProvincia = candidatos.find((el) => {
+    const els = Array.from(document.querySelectorAll('button, [role="button"], a, div, span, li'));
+    const btn = els.find((el) => {
       const txt = (el.textContent || '').trim().toUpperCase();
       return txt === 'PROVINCIA' && el.offsetParent !== null;
     });
-    if (btnProvincia) {
-      btnProvincia.click();
+    if (btn && !btn.dataset.sgiProvClicked) {
+      btn.dataset.sgiProvClicked = '1';
+      btn.click();
     }
   }
 
-  function obtenerMapaLeaflet() {
-    if (window.leafletMap && typeof window.leafletMap.setView === 'function') {
-      return window.leafletMap;
-    }
-    for (const key of Object.keys(window)) {
-      const val = window[key];
-      if (val && typeof val === 'object' && typeof val.setView === 'function' && typeof val.addLayer === 'function') {
-        return val;
-      }
-    }
-    return null;
-  }
-
-  function ubicarMarcador() {
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
-    const map = obtenerMapaLeaflet();
-    if (!map) return false;
-
-    if (window._ubicacionSeleccionadaLayer && typeof map.removeLayer === 'function') {
-      map.removeLayer(window._ubicacionSeleccionadaLayer);
-    }
-
-    const pinHtml = `
-      <div style="
-        width: 22px;
-        height: 22px;
-        background: #FF5A0A;
-        border: 3px solid #ffffff;
-        border-radius: 50% 50% 50% 0;
-        transform: rotate(-45deg);
-        box-shadow: 0 3px 10px rgba(0,0,0,0.35);
-      "></div>
-    `;
-
-    const icon = L.divIcon({
-      html: pinHtml,
-      className: 'sgi-pin-seleccionado',
-      iconSize: [22, 22],
-      iconAnchor: [11, 22],
-      popupAnchor: [0, -20]
+  function buscarInputUbicacion() {
+    const inputs = Array.from(document.querySelectorAll('input, textarea'));
+    return inputs.find((el) => {
+      const ph = (el.getAttribute('placeholder') || '').toLowerCase();
+      const lbl = (el.getAttribute('aria-label') || '').toLowerCase();
+      const id = (el.id || '').toLowerCase();
+      const name = (el.name || '').toLowerCase();
+      const nearbyText = (el.parentElement ? el.parentElement.textContent : '').toLowerCase();
+      return (
+        ph.includes('lat') ||
+        ph.includes('lng') ||
+        ph.includes('ubicación') ||
+        ph.includes('ubicacion') ||
+        lbl.includes('ubicación') ||
+        lbl.includes('ubicacion') ||
+        id.includes('ubic') ||
+        id.includes('coord') ||
+        name.includes('ubic') ||
+        name.includes('coord') ||
+        nearbyText.includes('ubicación (lat,lng)') ||
+        nearbyText.includes('ubicacion (lat,lng)')
+      );
     });
-
-    const marker = L.marker([lat, lng], { icon, zIndexOffset: 1000 });
-    const titulo = cliente || codigo || 'Ubicación seleccionada';
-    const subtitulo = [
-      codigo ? `Código: ${codigo}` : '',
-      cliente && codigo ? `Cliente: ${cliente}` : '',
-      `Coord: ${lat.toFixed(6)}, ${lng.toFixed(6)}`
-    ].filter(Boolean).join('<br>');
-
-    marker.bindPopup(`<strong>${titulo}</strong>${subtitulo ? `<br><span style="font-size:12px;">${subtitulo}</span>` : ''}`);
-    marker.addTo(map);
-    window._ubicacionSeleccionadaLayer = marker;
-
-    window._userHasZoomed = true;
-    map.setView([lat, lng], 17, { animate: true });
-    marker.openPopup();
-    return true;
   }
 
-  activarZonalProvincia();
+  function dispararEntradaManual(inputEl, coordTexto) {
+    const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+    if (nativeSetter) {
+      nativeSetter.call(inputEl, coordTexto);
+    } else {
+      inputEl.value = coordTexto;
+    }
+
+    inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+    inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+    inputEl.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+    inputEl.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+
+    const form = inputEl.closest('form');
+    if (form) {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    }
+
+    const scope = form || inputEl.parentElement?.parentElement || document;
+    const actionBtn = Array.from(scope.querySelectorAll('button')).find((b) =>
+      /ir|buscar|ubicar|agregar|marcar|ver|aplicar/i.test((b.textContent || '').trim())
+    );
+    if (actionBtn) {
+      actionBtn.click();
+    }
+  }
+
+  seleccionarProvinciaSiAplica();
 
   let intentos = 0;
-  const timer = setInterval(() => {
+  const interval = setInterval(() => {
     intentos += 1;
-    if (ubicarMarcador() || intentos >= 25) {
-      clearInterval(timer);
+    seleccionarProvinciaSiAplica();
+
+    const inputEl = buscarInputUbicacion();
+    if (inputEl) {
+      const valorDeseado = `${lat},${lng}`;
+      if (inputEl.dataset.sgiApplied !== valorDeseado) {
+        inputEl.dataset.sgiApplied = valorDeseado;
+        dispararEntradaManual(inputEl, valorDeseado);
+        if (codigo || cliente) {
+          console.log('[Monitor SGI -> Mapa]', { codigo, cliente, coord: valorDeseado });
+        }
+      }
+      clearInterval(interval);
+    } else if (intentos >= 40) {
+      clearInterval(interval);
     }
   }, 200);
 })();
