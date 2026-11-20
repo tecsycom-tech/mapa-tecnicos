@@ -6235,6 +6235,110 @@ if(localStorage.getItem('showTooltips')===null)localStorage.setItem('showTooltip
     });
   });
 })();
+// inicio del nuevo codigo para el mapa
+(function integrarParametrosDesdeMonitorSGI() {
+  const params = new URLSearchParams(window.location.search);
+  const zonal = (params.get('zonal') || '').trim().toUpperCase();
+  const latRaw = params.get('lat');
+  const lngRaw = params.get('lng');
+  const codigo = (params.get('codigo') || '').trim();
+  const cliente = (params.get('cliente') || '').trim();
+
+  if (!zonal && !latRaw && !lngRaw && !codigo && !cliente) return;
+
+  function activarZonalProvincia() {
+    if (zonal !== 'PROVINCIA') return;
+
+    // 1. Si existe un <select> que contenga opción PROVINCIA
+    document.querySelectorAll('select').forEach((sel) => {
+      const opt = Array.from(sel.options).find(
+        (o) => (o.value || '').toUpperCase().includes('PROVINCIA') || (o.textContent || '').toUpperCase().includes('PROVINCIA')
+      );
+      if (opt && sel.value !== opt.value) {
+        sel.value = opt.value;
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+
+    // 2. Si existe un botón, tab o chip con texto PROVINCIA
+    document.querySelectorAll('button, [role="tab"], a, label').forEach((el) => {
+      const txt = (el.textContent || '').trim().toUpperCase();
+      if (txt === 'PROVINCIA' || txt.includes('ZONAL PROVINCIA')) {
+        el.click();
+      }
+    });
+  }
+
+  function centrarUbicacionEnMapa() {
+    const lat = parseFloat(latRaw);
+    const lng = parseFloat(lngRaw);
+    const hasCoords = !Number.isNaN(lat) && !Number.isNaN(lng);
+
+    // Buscar instancia de Leaflet (L.Map) si existe en window o en el DOM
+    let leafletMap = null;
+    if (window.map && typeof window.map.setView === 'function') {
+      leafletMap = window.map;
+    } else if (window.mapa && typeof window.mapa.setView === 'function') {
+      leafletMap = window.mapa;
+    } else {
+      for (const key of Object.keys(window)) {
+        const val = window[key];
+        if (val && typeof val === 'object' && typeof val.setView === 'function' && typeof val.addLayer === 'function') {
+          leafletMap = val;
+          break;
+        }
+      }
+    }
+
+    if (hasCoords && leafletMap && typeof L !== 'undefined') {
+      leafletMap.setView([lat, lng], 17, { animate: true });
+
+      if (window._markerClienteSGI) {
+        leafletMap.removeLayer(window._markerClienteSGI);
+      }
+
+      const titulo = [codigo, cliente].filter(Boolean).join(' - ') || 'Ubicación del Registro';
+      const marker = L.circleMarker([lat, lng], {
+        radius: 10,
+        color: '#FF5A0A',
+        weight: 3,
+        fillColor: '#FF5A0A',
+        fillOpacity: 0.35
+      }).addTo(leafletMap);
+
+      const pin = L.marker([lat, lng]).addTo(leafletMap);
+      pin.bindPopup(
+        `<div style="font-family:Inter,sans-serif;font-size:12px;">
+          <strong style="color:#FF5A0A;">ZONAL PROVINCIA</strong><br/>
+          <strong>${titulo.replace(/</g, '&lt;')}</strong><br/>
+          <span style="font-family:monospace;color:#475569;">${lat.toFixed(6)}, ${lng.toFixed(6)}</span>
+        </div>`
+      ).openPopup();
+
+      window._markerClienteSGI = L.layerGroup([marker, pin]).addTo(leafletMap);
+    }
+
+    // Si hay buscador de texto en el mapa para código o cliente
+    const terminoBusqueda = codigo || cliente;
+    if (terminoBusqueda) {
+      const searchInput = document.querySelector('input[type="search"], input[id*="search" i], input[placeholder*="buscar" i], input[placeholder*="código" i], input[placeholder*="codigo" i]');
+      if (searchInput && !searchInput.value) {
+        searchInput.value = terminoBusqueda;
+        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+        searchInput.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }
+  }
+
+  window.addEventListener('load', () => {
+    activarZonalProvincia();
+    setTimeout(() => {
+      activarZonalProvincia();
+      centrarUbicacionEnMapa();
+    }, 350);
+    setTimeout(centrarUbicacionEnMapa, 1000);
+  });
+})();  
 
 </script>
 </body>
